@@ -69,7 +69,12 @@ def _date_and_delta(
 ) -> tuple[Any, Any]:
     """Turn a value into a date and a timedelta which represents how long ago it was.
 
-    If that's not possible, return `(None, value)`.
+    If that's not possible (for example, `value` is a string or a non-finite float
+    such as NaN or infinity), return `(None, value)`.
+
+    Raises:
+        OverflowError: If `value` is a finite number too large to convert to
+            datetime.timedelta.
     """
     import datetime as dt
 
@@ -88,6 +93,14 @@ def _date_and_delta(
             date = now - delta
         except (ValueError, TypeError):
             return None, value
+        except OverflowError:
+            # Infinity overflows `round()`/`timedelta`: treat it like NaN, but
+            # still raise for a too-large finite value (as in `naturaldelta`).
+            import math
+
+            if not math.isfinite(value):
+                return None, value
+            raise
     return date, _abs_timedelta(delta)
 
 
@@ -284,6 +297,12 @@ def naturaltime(
 
     Returns:
         str: A natural representation of the input in a resolution that makes sense.
+            If `value` is not a number (for example, a string) or is a non-finite
+            float such as NaN or infinity, `str(value)` is returned.
+
+    Raises:
+        OverflowError: If `value` is a finite number too large to convert to
+            datetime.timedelta.
     """
     import datetime as dt
 
@@ -544,6 +563,15 @@ def precisedelta(
     '0 minutes'
 
     ```
+
+    Returns:
+        str: A precise representation of the timedelta. If `value` is not a number
+            (for example, a string) or is a non-finite float such as NaN or
+            infinity, `str(value)` is returned.
+
+    Raises:
+        OverflowError: If `value` is a finite number too large to convert to
+            datetime.timedelta.
     """
     date, delta = _date_and_delta(value, precise=True)
     if date is None:

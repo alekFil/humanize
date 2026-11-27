@@ -11,6 +11,10 @@ from freezegun import freeze_time
 import humanize
 from humanize import time
 
+TYPE_CHECKING = False
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 ONE_DAY_DELTA = dt.timedelta(days=1)
 
 # In seconds
@@ -71,6 +75,9 @@ def test_date_and_delta() -> None:
             assert_equal_datetime(date, result[0])
             assert_equal_timedelta(d, result[1])
     assert time._date_and_delta("NaN") == (None, "NaN")
+    for value in (float("inf"), float("-inf")):
+        assert time._date_and_delta(value) == (None, value)
+        assert time._date_and_delta(value, precise=True) == (None, value)
 
 
 # Tests for the public interface of humanize.time
@@ -160,6 +167,27 @@ def test_naturaldelta_too_large_value_raises() -> None:
     """A too-large *finite* value still raises OverflowError (unlike inf)."""
     with pytest.raises(OverflowError):
         humanize.naturaldelta(1e30)
+
+
+@pytest.mark.parametrize("func", [humanize.naturaltime, humanize.precisedelta])
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_returned_unchanged(
+    func: Callable[[float], str], value: float
+) -> None:
+    """Non-finite floats are returned unchanged, like in naturaldelta."""
+    assert func(value) == str(value)
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_naturaltime_non_finite_future(value: float) -> None:
+    assert humanize.naturaltime(value, future=True) == str(value)
+
+
+@pytest.mark.parametrize("func", [humanize.naturaltime, humanize.precisedelta])
+def test_too_large_finite_value_raises(func: Callable[[float], str]) -> None:
+    """A too-large *finite* value still raises OverflowError (unlike inf)."""
+    with pytest.raises(OverflowError):
+        func(1e30)
 
 
 @freeze_time(FROZEN_DATE)
